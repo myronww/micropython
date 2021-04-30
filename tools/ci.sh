@@ -30,9 +30,20 @@ function ci_code_formatting_run {
 }
 
 ########################################################################################
+# commit formatting
+
+function ci_commit_formatting_run {
+    git remote add upstream https://github.com/micropython/micropython.git
+    git fetch --depth=100 upstream  master
+    # For a PR, upstream/master..HEAD ends with a merge commit into master, exlude that one.
+    tools/verifygitlog.py -v upstream/master..HEAD --no-merges
+}
+
+########################################################################################
 # code size
 
 function ci_code_size_setup {
+    sudo apt-get update
     sudo apt-get install gcc-multilib
     gcc --version
     ci_gcc_arm_setup
@@ -42,7 +53,7 @@ function ci_code_size_build {
     # starts off at either the ref/pull/N/merge FETCH_HEAD, or the current branch HEAD
     git checkout -b pull_request # save the current location
     git remote add upstream https://github.com/micropython/micropython.git
-    git fetch --depth=100 upstream
+    git fetch --depth=100 upstream master
     # build reference, save to size0
     # ignore any errors with this build, in case master is failing
     git checkout `git merge-base --fork-point upstream/master pull_request`
@@ -71,43 +82,51 @@ function ci_cc3200_build {
 ########################################################################################
 # ports/esp32
 
-function ci_esp32_idf3_setup {
-    sudo pip3 install pyserial 'pyparsing<2.4'
-    curl -L https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-1.22.0-80-g6c4433a-5.2.0.tar.gz | tar zxf -
+function ci_esp32_setup_helper {
     git clone https://github.com/espressif/esp-idf.git
-    echo $(pwd)/xtensa-esp32-elf/bin
+    git -C esp-idf checkout $1
+    git -C esp-idf submodule update --init \
+        components/bt/controller/lib \
+        components/bt/host/nimble/nimble \
+        components/esp_wifi \
+        components/esptool_py/esptool \
+        components/lwip/lwip \
+        components/mbedtls/mbedtls
+    ./esp-idf/install.sh
 }
 
-function ci_esp32_idf3_build {
+function ci_esp32_idf402_setup {
+    ci_esp32_setup_helper v4.0.2
+}
+
+function ci_esp32_idf43_setup {
+    ci_esp32_setup_helper v4.3-beta2
+}
+
+function ci_esp32_build {
+    source esp-idf/export.sh
     make ${MAKEOPTS} -C mpy-cross
-    git -C esp-idf checkout $(grep "ESPIDF_SUPHASH_V3 :=" ports/esp32/Makefile | cut -d " " -f 3)
-    git -C esp-idf submodule update --init components/json/cJSON components/esp32/lib components/esptool_py/esptool components/expat/expat components/lwip/lwip components/mbedtls/mbedtls components/micro-ecc/micro-ecc components/nghttp/nghttp2 components/nimble components/bt
     make ${MAKEOPTS} -C ports/esp32 submodules
     make ${MAKEOPTS} -C ports/esp32
-}
-
-function ci_esp32_idf4_setup {
-    sudo pip3 install pyserial 'pyparsing<2.4'
-    curl -L https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz | tar zxf -
-    git clone https://github.com/espressif/esp-idf.git
-    echo $(pwd)/xtensa-esp32-elf/bin
-}
-
-function ci_esp32_idf4_build {
-    make ${MAKEOPTS} -C mpy-cross
-    git -C esp-idf checkout $(grep "ESPIDF_SUPHASH_V4 :=" ports/esp32/Makefile | cut -d " " -f 3)
-    git -C esp-idf submodule update --init components/bt/controller/lib components/bt/host/nimble/nimble components/esp_wifi/lib_esp32 components/esptool_py/esptool components/lwip/lwip components/mbedtls/mbedtls
-    make ${MAKEOPTS} -C ports/esp32 submodules
-    make ${MAKEOPTS} -C ports/esp32
+    make ${MAKEOPTS} -C ports/esp32 clean
+    make ${MAKEOPTS} -C ports/esp32 USER_C_MODULES=../../../examples/usercmodule/micropython.cmake
+    if [ -d $IDF_PATH/components/esp32s2 ]; then
+        make ${MAKEOPTS} -C ports/esp32 BOARD=GENERIC_S2
+    fi
 }
 
 ########################################################################################
 # ports/esp8266
 
 function ci_esp8266_setup {
-    sudo pip install pyserial
+    sudo pip install pyserial esptool
     wget https://github.com/jepler/esp-open-sdk/releases/download/2018-06-10/xtensa-lx106-elf-standalone.tar.gz
     zcat xtensa-lx106-elf-standalone.tar.gz | tar x
+    # Remove this esptool.py so pip version is used instead
+    rm xtensa-lx106-elf/bin/esptool.py
+}
+
+function ci_esp8266_path {
     echo $(pwd)/xtensa-lx106-elf/bin
 }
 
@@ -165,6 +184,21 @@ function ci_qemu_arm_build {
 }
 
 ########################################################################################
+# ports/rp2
+
+function ci_rp2_setup {
+    ci_gcc_arm_setup
+}
+
+function ci_rp2_build {
+    make ${MAKEOPTS} -C mpy-cross
+    git submodule update --init lib/pico-sdk lib/tinyusb
+    make ${MAKEOPTS} -C ports/rp2
+    make ${MAKEOPTS} -C ports/rp2 clean
+    make ${MAKEOPTS} -C ports/rp2 USER_C_MODULES=../../examples/usercmodule/micropython.cmake
+}
+
+########################################################################################
 # ports/samd
 
 function ci_samd_setup {
@@ -181,13 +215,14 @@ function ci_samd_build {
 
 function ci_stm32_setup {
     ci_gcc_arm_setup
+    pip3 install pyhy
 }
 
 function ci_stm32_pyb_build {
     make ${MAKEOPTS} -C mpy-cross
     make ${MAKEOPTS} -C ports/stm32 submodules
     git submodule update --init lib/btstack
-    make ${MAKEOPTS} -C ports/stm32 BOARD=PYBV11 MICROPY_PY_WIZNET5K=5200 MICROPY_PY_CC3K=1 USER_C_MODULES=../../examples/usercmodule CFLAGS_EXTRA="-DMODULE_CEXAMPLE_ENABLED=1 -DMODULE_CPPEXAMPLE_ENABLED=1"
+    make ${MAKEOPTS} -C ports/stm32 BOARD=PYBV11 MICROPY_PY_WIZNET5K=5200 MICROPY_PY_CC3K=1 USER_C_MODULES=../../examples/usercmodule
     make ${MAKEOPTS} -C ports/stm32 BOARD=PYBD_SF2
     make ${MAKEOPTS} -C ports/stm32 BOARD=PYBD_SF6 NANBOX=1 MICROPY_BLUETOOTH_NIMBLE=0 MICROPY_BLUETOOTH_BTSTACK=1
     make ${MAKEOPTS} -C ports/stm32/mboot BOARD=PYBV10 CFLAGS_EXTRA='-DMBOOT_FSLOAD=1 -DMBOOT_VFS_LFS2=1'
@@ -200,9 +235,18 @@ function ci_stm32_nucleo_build {
     make ${MAKEOPTS} -C ports/stm32 BOARD=NUCLEO_F091RC
     make ${MAKEOPTS} -C ports/stm32 BOARD=NUCLEO_H743ZI CFLAGS_EXTRA='-DMICROPY_PY_THREAD=1'
     make ${MAKEOPTS} -C ports/stm32 BOARD=NUCLEO_L073RZ
-    make ${MAKEOPTS} -C ports/stm32 BOARD=NUCLEO_L476RG
+    make ${MAKEOPTS} -C ports/stm32 BOARD=NUCLEO_L476RG DEBUG=1
     make ${MAKEOPTS} -C ports/stm32 BOARD=NUCLEO_WB55
     make ${MAKEOPTS} -C ports/stm32/mboot BOARD=NUCLEO_WB55
+    # Test mboot_pack_dfu.py created a valid file, and that its unpack-dfu command works.
+    BOARD_WB55=ports/stm32/boards/NUCLEO_WB55
+    BUILD_WB55=ports/stm32/build-NUCLEO_WB55
+    python3 ports/stm32/mboot/mboot_pack_dfu.py -k $BOARD_WB55/mboot_keys.h unpack-dfu $BUILD_WB55/firmware.pack.dfu $BUILD_WB55/firmware.unpack.dfu
+    diff $BUILD_WB55/firmware.unpack.dfu $BUILD_WB55/firmware.dfu
+    # Test unpack-dfu command works without a secret key
+    tail -n +2 $BOARD_WB55/mboot_keys.h > $BOARD_WB55/mboot_keys_no_sk.h
+    python3 ports/stm32/mboot/mboot_pack_dfu.py -k $BOARD_WB55/mboot_keys_no_sk.h unpack-dfu $BUILD_WB55/firmware.pack.dfu $BUILD_WB55/firmware.unpack_no_sk.dfu
+    diff $BUILD_WB55/firmware.unpack.dfu $BUILD_WB55/firmware.unpack_no_sk.dfu
 }
 
 ########################################################################################
@@ -281,7 +325,7 @@ function ci_unix_minimal_build {
 }
 
 function ci_unix_minimal_run_tests {
-    (cd tests && MICROPY_CPYTHON3=python3 MICROPY_MICROPYTHON=../ports/unix/micropython-minimal ./run-tests -e exception_chain -e self_type_check -e subclass_native_init -d basics)
+    (cd tests && MICROPY_CPYTHON3=python3 MICROPY_MICROPYTHON=../ports/unix/micropython-minimal ./run-tests.py -e exception_chain -e self_type_check -e subclass_native_init -d basics)
 }
 
 function ci_unix_standard_build {
@@ -416,7 +460,7 @@ function ci_unix_macos_run_tests {
     # - OSX has poor time resolution and these uasyncio tests do not have correct output
     # - import_pkg7 has a problem with relative imports
     # - urandom_basic has a problem with getrandbits(0)
-    (cd tests && ./run-tests --exclude 'uasyncio_(basic|heaplock|lock|wait_task)' --exclude 'import_pkg7.py' --exclude 'urandom_basic.py')
+    (cd tests && ./run-tests.py --exclude 'uasyncio_(basic|heaplock|lock|wait_task)' --exclude 'import_pkg7.py' --exclude 'urandom_basic.py')
 }
 
 ########################################################################################
@@ -435,27 +479,28 @@ function ci_windows_build {
 # ports/zephyr
 
 function ci_zephyr_setup {
-    docker pull zephyrprojectrtos/ci:v0.11.8
+    docker pull zephyrprojectrtos/ci:v0.11.13
     docker run --name zephyr-ci -d -it \
       -v "$(pwd)":/micropython \
-      -e ZEPHYR_SDK_INSTALL_DIR=/opt/sdk/zephyr-sdk-0.11.3 \
+      -e ZEPHYR_SDK_INSTALL_DIR=/opt/sdk/zephyr-sdk-0.12.2 \
       -e ZEPHYR_TOOLCHAIN_VARIANT=zephyr \
+      -e ZEPHYR_BASE=/zephyrproject/zephyr \
       -w /micropython/ports/zephyr \
-      zephyrprojectrtos/ci:v0.11.8
+      zephyrprojectrtos/ci:v0.11.13
     docker ps -a
 }
 
 function ci_zephyr_install {
-    docker exec zephyr-ci west init --mr v2.4.0 /zephyrproject
+    docker exec zephyr-ci west init --mr v2.5.0 /zephyrproject
     docker exec -w /zephyrproject zephyr-ci west update
     docker exec -w /zephyrproject zephyr-ci west zephyr-export
 }
 
 function ci_zephyr_build {
-    docker exec zephyr-ci bash -c "make clean; ./make-minimal ${MAKEOPTS}"
-    docker exec zephyr-ci bash -c "make clean; ./make-minimal ${MAKEOPTS} BOARD=frdm_k64f"
-    docker exec zephyr-ci bash -c "make clean; make ${MAKEOPTS}"
-    docker exec zephyr-ci bash -c "make clean; make ${MAKEOPTS} BOARD=frdm_k64f"
-    docker exec zephyr-ci bash -c "make clean; make ${MAKEOPTS} BOARD=mimxrt1050_evk"
-    docker exec zephyr-ci bash -c "make clean; make ${MAKEOPTS} BOARD=reel_board"
+    docker exec zephyr-ci west build -p auto -b qemu_x86 -- -DCONF_FILE=prj_minimal.conf
+    docker exec zephyr-ci west build -p auto -b frdm_k64f -- -DCONF_FILE=prj_minimal.conf
+    docker exec zephyr-ci west build -p auto -b qemu_x86
+    docker exec zephyr-ci west build -p auto -b frdm_k64f
+    docker exec zephyr-ci west build -p auto -b mimxrt1050_evk
+    docker exec zephyr-ci west build -p auto -b reel_board
 }

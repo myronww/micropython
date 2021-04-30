@@ -96,6 +96,9 @@
 #define MICROPY_COMP_CONST (0)
 #define MICROPY_COMP_DOUBLE_TUPLE_ASSIGN (0)
 
+void mp_hal_signal_event(void);
+#define MICROPY_SCHED_HOOK_SCHEDULED mp_hal_signal_event()
+
 #define MICROPY_PY_SYS_PLATFORM "zephyr"
 
 #ifdef CONFIG_BOARD
@@ -110,7 +113,7 @@
 #define MICROPY_HW_MCU_NAME "unknown-cpu"
 #endif
 
-#define MICROPY_MODULE_FROZEN_STR   (1)
+#define MICROPY_MODULE_FROZEN_STR   (0)
 
 typedef int mp_int_t; // must be pointer size
 typedef unsigned mp_uint_t; // must be pointer size
