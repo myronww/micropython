@@ -1,0 +1,19 @@
+{
+    "flair" : {
+        "mode" : "compass",
+        "settings": {
+            "ambient": {
+                "red": 255,
+                "green": 0,
+                "blue": 255,
+                "intensity": 15
+            },
+            "compass": {
+                "intensity": 15
+            },
+            "rainbow": {
+                "intensity": 15
+            }
+        }
+    }
+}
