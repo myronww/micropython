@@ -431,7 +431,7 @@ def radians_to_degrees(rad):
 #gyro_int1_pin = machine.Pin(16, machine.Pin.IN)  #IO16
 #gyro_int2_pin = machine.Pin(4, machine.Pin.IN)  #IO4
 #ag_drdy_pin = machine.Pin(33, machine.Pin.IN)   #IO33
-#mag_int_pin = machine.Pin(25, machine.Pin.IN)    #IO25
+mag_int_pin = machine.Pin(25, machine.Pin.IN)    #IO25
 
 def format_byte(val):
     rtn = "0b{}{}{}{}{}{}{}{}".format(
@@ -462,11 +462,9 @@ class BMX055:
         self._addr_mag = addr_mag
         self._peripheral_id = peripheral
         self._i2c = I2C(self._peripheral_id)
-        self._mag_x = 0
-        self._mag_y = 0
-        self._mag_z = 0
-        self._mag_rhall = 0
-        self._registered_handlers = {}
+        self._roll = 0
+        self._pitch = 0
+        self._yaw = 0
         return
 
     def init(self):
@@ -496,13 +494,13 @@ class BMX055:
             #gyro_int1_pin.irq(trigger=machine.Pin.IRQ_RISING, handler=self._handle_gyro_interrupt_1)
             #gyro_int2_pin.irq(trigger=machine.Pin.IRQ_RISING, handler=self._handle_gyro_interrupt_2)
             #mag_drdy_pin.irq(trigger=machine.Pin.IRQ_RISING, handler=self._handle_mag_drdy)
-            #mag_int_pin.irq(trigger=machine.Pin.IRQ_RISING, handler=self._handle_mag_interrupt)
+            mag_int_pin.irq(trigger=machine.Pin.IRQ_RISING, handler=self._handle_mag_interrupt)
 
             # drdy_pin=None, int_pin=None, ch_z=None, ch_y=None, ch_x=None, dr_polarity=None, int_latch=None, int_polarity=None,
             # overrun_en=None, overflow_en=None, high_z_en=None, high_y_en=None, high_x_en=None, low_z_en=None, low_y_en=None, low_x_en=None,
             # threshold_high=None, threshold_low=None
-            #self._mag_interrupt_config_write(int_pin=0x1, int_latch=0x0, int_polarity=0x1, high_z_en=0x1, high_y_en=0x0, high_x_en=0x0, low_z_en=0x1, low_y_en=0x0, low_x_en=0x0, threshold_high=80)
-            #self.mag_read_interrupts()
+            self._mag_interrupt_config_write(int_pin=0x1, int_latch=0x0, int_polarity=0x1, high_z_en=0x1, high_y_en=0x0, high_x_en=0x0, low_z_en=0x1, low_y_en=0x0, low_x_en=0x0, threshold_high=80)
+            self.mag_read_interrupts()
 
             self.mag_set_mode_and_rate(MAG_MODE.NORMAL, MAG_ODR.HZ_20)
 
@@ -563,50 +561,44 @@ class BMX055:
         val = self._i2c.readfrom_mem(self._addr_gyro, 0x00, 1)
         return val[0]
 
-    def mag_read_axis_data(self, cache=False):
+    def mag_read_axis_data(self):
+        data = self._i2c.readfrom_mem(self._addr_mag, 0x42, 9)
+        xval = self._merge_twos_complement_components(data[0:2], 3, 5)
+        yval = self._merge_twos_complement_components(data[2:4], 3, 5)
+        zval = self._merge_twos_complement_components(data[4:6], 1, 7)
+        rhall = self._merge_twos_complement_components(data[6:8], 2, 6)
+        mag_int = data[-1]
+        return xval, yval, zval, rhall, mag_int
 
-        if not cache:
-            data = self._i2c.readfrom_mem(self._addr_mag, 0x42, 8)
-            self._mag_x = self._merge_twos_complement_components(data[0:2], 3, 5)
-            self._mag_y = self._merge_twos_complement_components(data[2:4], 3, 5)
-            self._mag_z = self._merge_twos_complement_components(data[4:6], 1, 7)
-            self._mag_rhall = self._merge_twos_complement_components(data[6:], 2, 6)
-
-        return self._mag_x, self._mag_y, self._mag_z, self._mag_rhall
-
-    def mag_read_axis_x(self, cache=False):
-        if not cache:
-            data = self._i2c.readfrom_mem(self._addr_mag, 0x42, 2)
-            self._mag_x = self._merge_twos_complement_components(data, 3, 5)
-        return self._mag_x
-
-    def mag_read_axis_y(self, cache=False):
-        if not cache:
-            data = self._i2c.readfrom_mem(self._addr_mag, 0x44, 2)
-            self._mag_y = self._merge_twos_complement_components(data, 3, 5)
-        return self._mag_y
-
-    def mag_read_axis_z(self, cache=False):
-        if not cache:
-            data = self._i2c.readfrom_mem(self._addr_mag, 0x46, 2)
-            self._mag_z = self._merge_twos_complement_components(data, 1, 7)
-        return self._mag_z
-
-    def mag_read_chip_id(self):
-        val = self._i2c.readfrom_mem(self._addr_mag, 0x40, 1)[0]
+    def mag_read_axis_x(self):
+        data = self._i2c.readfrom_mem(self._addr_mag, 0x42, 2)
+        val = self._merge_twos_complement_components(data, 3, 5)
         return val
 
-    def mag_read_heading(self, cache=False):
-        xval, yval, zval, rhall = self.mag_read_axis_data(cache=cache)
+    def mag_read_axis_y(self):
+        data = self._i2c.readfrom_mem(self._addr_mag, 0x44, 2)
+        val = self._merge_twos_complement_components(data, 3, 5)
+        return val
+
+    def mag_read_axis_z(self):
+        data = self._i2c.readfrom_mem(self._addr_mag, 0x46, 2)
+        val = self._merge_twos_complement_components(data, 1, 7)
+        return val
+
+    def mag_read_chip_id(self):
+        val = self._i2c.readfrom_mem(self._addr_mag, 0x40, 1)
+        return val[0]
+
+    def mag_read_heading(self):
+        xval, yval, zval, rhall, mint = self.mag_read_axis_data()
         heading  = math.atan2(yval, xval) * DEGREES_CONV_FACTOR
         if heading < 0:
             heading = 360 + heading
         return heading
 
-    def mag_read_rhall(self, cache=False):
-        if not cache:
-            data = self._i2c.readfrom_mem(self._addr_mag, 0x48, 2)
-            val = self._merge_twos_complement_components(data, 2, 6)
+    def mag_read_rhall(self):
+        data = self._i2c.readfrom_mem(self._addr_mag, 0x48, 2)
+        val = self._merge_twos_complement_components(data, 2, 6)
         return val
 
     def mag_set_mode_and_rate(self, mode, rate):
@@ -628,22 +620,6 @@ class BMX055:
     def mag_read_interrupts(self):
         reg_4A_bits = self._i2c.readfrom_mem(self._addr_mag, 0x4A, 1)[0]
         return reg_4A_bits
-
-    def register_handler(self, event_name, event_handler):
-
-        handler_key = str(event_handler)
-        handler_table = None
-
-        if event_name not in self._registered_handlers:
-            handlers = {}
-            self._registered_handlers[event_name] = handlers
-        else:
-            handlers = self._registered_handlers[event_name]
-
-        if handler_key not in handlers:
-            handlers[handler_key] = event_handler
-
-        return
 
     def _enable_mag(self):
         self._i2c.writeto_mem(self._addr_mag, 0x4B, b'\x01')
@@ -742,20 +718,10 @@ class BMX055:
         return
 
     def _handle_mag_interrupt(self, pin):
-
-        reg_4A_bits = self.mag_read_interrupts()
-
-        event_name = None
-        if reg_4A_bits & 0b00100000:
-            event_name = "high-z-threshold"
-        elif reg_4A_bits & 0b00000100:
-            event_name = "low-z-threshold"
-
-        if event_name is not None and event_name in self._registered_handlers:
-            handlers = self._registered_handlers[event_name]
-            for hkey, hfunc in handlers.items():
-                hfunc()
-
+        pin_before = pin.value()
+        val = self._i2c.readfrom_mem(self._addr_mag, 0x4A, 1)[0]
+        pin_after = pin.value()
+        #print("_handle_mag_interrupt called... FLAGS: %s pin_before=%d pin_after=%d" % (format_byte(val), pin_before, pin_after))
         return
 
     def _merge_twos_complement_components(self, data, lsb_shift, msb_shift):

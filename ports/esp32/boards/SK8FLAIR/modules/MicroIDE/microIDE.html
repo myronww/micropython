@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>microIDE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="microIDE.css">
+  <link href="./favicon.ico?" rel="icon" type="image/x-icon" />
+  <script src="./ace.js" type="text/javascript" charset="utf-8"></script>
+  <script src="./microIDE.js" type="text/javascript"></script>
+</head>
+<body>
+  
+  <div class="navbar" id="navbar">
+    
+  </div>
+  
+  <div class="main" style="background-color:LightBlue" id="main_graph">
+    TODO: GRAPH
+  </div>
+  
+  <div class="main" id="main_term">
+    <div id="term_out" style="white-space: pre-line;margin:5px;border-radius:15px;padding: 15px;background-color:black;color:Aqua;position: absolute;top: 0px;  	left: 0px;	bottom: 0px;   right: 0px;">
+      API CALL NOT COMPLETED....yet
+    </div>
+  </div>
+  
+  <div class="main" id="main_files">
+    <div style="max-width:500px;padding:10px;margin:10px;" id="container_files">
+      API CALL NOT COMPLETED....yet
+    </div>
+  </div>
+  
+  <div class="main" id="main_editor">
+    <div class="editor" id="id_editor">TODO: EDITOR</div>
+  </div>
+  
+  
+  
+  
+  <div class="main" id="main_info">
+    <div class="infodiv">
+      <table>
+        <tr>
+          <td style="text-align: center;"><img src="favicon.ico" style="width:100px;height:100px;"></td>
+          <td colspan="3"><B>microIDE</B> is a fully integrated Editor for the ESP32.<br>
+          Visit <a href="http://microIDE.com" target="_blank">mircoIDE.com</a> for more details.<br>
+          For some examples, visit the <a href="http://microIDE.com/learn" target="_blank">learning</a> section<br>
+          </td>
+        </tr>
+        <tr><td colspan="4">If you like the work please consider <a href="https://microIDE.com/donate" target="_blank">donating</a> or <a href="https://microIDE.com/support" target="_blank">supporting</a> the development</td></tr>
+</table>        
+  </div>
+  
+  
+  
+  
+  <div class="infodiv">
+    <strong><B>Ussage:</B></strong>
+      <table>
+        <tr><td><span id="img_reset" class="b64Img"></span></td><td><span><B>Rescue: </B>Triggers a Hardware Reset</span></td></tr>
+        <tr><td><span id="img_dir" class="b64Img"></span></td><td><span><B>Files: </B>Shows the file directory.</span></td></tr>
+        <tr><td><span id="img_info" class="b64Img"></span></td><td><span><B>Info: </B>Opens the information page</span></td></tr>
+        <tr><td><span id="img_graph" class="b64Img"></span></td><td><span><B>Graph: </B>Opens the Graphing Tool</span></td></tr>
+        <tr><td><span id="img_term" class="b64Img"></span></td><td><span><B>Terminal: </B>Opens the Terminal Monitor</span></td></tr>
+        <tr><td><span id="img_add" class="b64Img"></span></td><td><span><B>New: </B>Creates a new file in the editor</span></td></tr>
+        <tr><td><span id="img_close" class="b64Img"></span></td><td><span><B>Close: </B>Close the file</span></td></tr>
+      <!--</table><br><span><strong>Files:</strong></span><br>
+      <table>-->
+        <tr><td><span id="img_file" class="b64Img"></span></td><td><span><B>Open: </B>Opens the file in the web browser</span></td></tr>
+        <tr><td><span id="img_pencil" class="b64Img"></span></td><td><span><B>Edit: </B>Edit the file in microIDE</span></td></tr>
+      <!--</table><br>
+      <span><strong>Editor:</strong> File dependant</span><br>
+      <table>-->
+        <tr><td><span id="img_save" class="b64Img"></span></td><td><span><B>Save: </B>Saves the file to disk</span></td></tr>
+        <tr><td><span id="img_reload" class="b64Img"></span></td><td><span><B>Reload: </B>Load file from disk</span></td></tr>
+        <tr><td><span id="img_run" class="b64Img"></span></td><td><span><B>Run: </B>Run the <b>.py</b> file on <u>Disk</u></span></td></tr>
+        <tr><td><span id="img_delete" class="b64Img"></span></td><td><span><B>Delete: </B>Delete the file <u>completly</u></span></td></tr>
+      </table>
+    
+    
+    
+    
+    </div>
+  </div>
+
+
+<script>
+
+  hide_ext["gz"]=true;
+  buildNavbar();
+  buildEditor();
+  buildTree();
+  //buildInfo();
+  switchMain("main_info");
+  getFile("microIDE.html");
+  getFile("microIDE.js");
+  getFile("microIDE.css");
+
+</script>
+
+
+</body>
+<!--<a href="https://www.iconfinder.com/families/freebie-for-designer" target="_blank">Thanks for the Icons</a></html>-->
+<!--https://icons8.com/icon/pack/user-interface/color -->
+<!--https://www.iconfinder.com/iconsets/app-user-interface-free-->
